@@ -30,8 +30,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.corfudb.common.compression.Codec;
 import org.corfudb.common.util.ObservableValue;
 import org.corfudb.infrastructure.logreplication.infrastructure.LogReplicationContext;
+import org.corfudb.infrastructure.logreplication.infrastructure.SessionManager;
+import org.corfudb.infrastructure.logreplication.infrastructure.TopologyDescriptor;
 import org.corfudb.infrastructure.logreplication.infrastructure.plugins.DefaultClusterConfig;
+import org.corfudb.infrastructure.logreplication.infrastructure.plugins.DefaultClusterManager;
 import org.corfudb.infrastructure.logreplication.proto.LogReplicationMetadata;
+import org.corfudb.infrastructure.logreplication.proto.LogReplicationMetadata.ReplicationInfo;
+import org.corfudb.infrastructure.logreplication.proto.LogReplicationMetadata.ReplicationStatus;
+import org.corfudb.infrastructure.logreplication.proto.LogReplicationMetadata.SyncStatus;
 import org.corfudb.infrastructure.logreplication.proto.Sample;
 import org.corfudb.infrastructure.logreplication.replication.send.LogReplicationAckReader;
 import org.corfudb.infrastructure.logreplication.replication.fsm.EmptyDataSender;
@@ -179,13 +185,13 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
     @Test
     public void testSyncStatusUpdatesForSnapshotOnInit() throws Exception {
         final int updateToStatusTableFromOnEntry = 1;
-        initLogReplicationFSM(ReaderImplementation.EMPTY);
+        initLogReplicationFSM(ReaderImplementation.INITIALIZED);
 
         final Table<LogReplicationSession, LogReplicationMetadata.ReplicationStatus, Message> statusTable =
                 this.corfuStore.getTable(NAMESPACE, REPLICATION_STATUS_TABLE_NAME);
 
         CountDownLatch statusTableLatch = new CountDownLatch(updateToStatusTableFromOnEntry);
-        TestStreamListener streamListener = new TestStreamListener(statusTableLatch);
+        TestStatusTableStreamListener streamListener = new TestStatusTableStreamListener(statusTableLatch);
         corfuStore.subscribeListener(streamListener, NAMESPACE, LR_STATUS_STREAM_TAG);
 
         // Initial state: Initialized
@@ -194,16 +200,23 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
 
         transitionAvailable.acquire();
 
-        // Transition #1: Replication Stop (without any replication having started)
-        transition(LogReplicationEventType.REPLICATION_STOP, LogReplicationStateType.INITIALIZED);
+        ReplicationStatus currentReplicationStatus = statusTable.entryStream().findAny().get().getPayload();
+        ReplicationInfo currentReplicationInfo = currentReplicationStatus.getSourceStatus().getReplicationInfo();
 
-        // Default sync value is null so replication status should not be set at all.
-        final int expectedStatusTableLength = 0;
-        Assert.assertEquals(expectedStatusTableLength, statusTable.count());
+        // Default sync value is null so current syncType should not be set.
+        Assert.assertFalse(currentReplicationInfo.hasField(ReplicationInfo.getDescriptor().findFieldByName("syncType")));
 
-        // Transition #2: SNAPSHOT Sync Start
+        // initializeMetadata function in MetadataManager should be first to set ReplicationStatus
+        // Current SyncStatus for ReplicationInfo and SnapshotSyncInfo should be NOT_STARTED
+        Assert.assertEquals(SyncStatus.NOT_STARTED,
+                currentReplicationStatus.getSourceStatus().getReplicationInfo().getStatus());
+        Assert.assertEquals(SyncStatus.NOT_STARTED,
+                currentReplicationStatus.getSourceStatus().getReplicationInfo().getSnapshotSyncInfo().getStatus());
+
+        // Transition #1: SNAPSHOT Sync Start
         transition(LogReplicationEventType.SNAPSHOT_SYNC_REQUEST, LogReplicationStateType.IN_SNAPSHOT_SYNC);
 
+        // Await for update to status table from entry of InSnapshotSyncState
         statusTableLatch.await();
         corfuStore.unsubscribeListener(streamListener);
 
@@ -221,12 +234,11 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
             }
         }
 
-        // Status starts as NOT_STARTED set by the polling task and gets updated in InSnapshotSyncState
-        LogReplicationMetadata.SyncStatus headStatus = LogReplicationMetadata.SyncStatus.NOT_STARTED;
+        // Status starts as NOT_STARTED set at the creation of the metadata manager,
+        // and then gets updated to ONGOING in InSnapshotSyncState
         LogReplicationMetadata.SyncStatus tailStatus = LogReplicationMetadata.SyncStatus.ONGOING;
 
         Assert.assertEquals(expectedSyncTypes, actualSyncTypes);
-        Assert.assertEquals(headStatus, actualSyncStatus.get(0));
         Assert.assertEquals(tailStatus, actualSyncStatus.get(actualSyncStatus.size() - 1));
     }
 
@@ -238,13 +250,13 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
     @Test
     public void testSyncStatusUpdatesForLogEntryOnInit() throws Exception {
         final int updateToStatusTableFromOnEntry = 1;
-        initLogReplicationFSM(ReaderImplementation.EMPTY);
+        initLogReplicationFSM(ReaderImplementation.INITIALIZED);
 
         final Table<LogReplicationSession, LogReplicationMetadata.ReplicationStatus, Message> statusTable =
                 this.corfuStore.getTable(NAMESPACE, REPLICATION_STATUS_TABLE_NAME);
 
         CountDownLatch statusTableLatch = new CountDownLatch(updateToStatusTableFromOnEntry);
-        TestStreamListener streamListener = new TestStreamListener(statusTableLatch);
+        TestStatusTableStreamListener streamListener = new TestStatusTableStreamListener(statusTableLatch);
         corfuStore.subscribeListener(streamListener, NAMESPACE, LR_STATUS_STREAM_TAG);
 
         // Initial state: Initialized
@@ -253,16 +265,23 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
 
         transitionAvailable.acquire();
 
-        // Transition #1: Replication Stop (without any replication having started)
-        transition(LogReplicationEventType.REPLICATION_STOP, LogReplicationStateType.INITIALIZED);
+        ReplicationStatus currentReplicationStatus = statusTable.entryStream().findAny().get().getPayload();
+        ReplicationInfo currentReplicationInfo = currentReplicationStatus.getSourceStatus().getReplicationInfo();
 
-        // Default sync value is null so replication status should not be set at all.
-        final int expectedStatusTableLength = 0;
-        Assert.assertEquals(expectedStatusTableLength, statusTable.count());
+        // Default sync value is null so current syncType should not be set.
+        Assert.assertFalse(currentReplicationInfo.hasField(ReplicationInfo.getDescriptor().findFieldByName("syncType")));
 
-        // Transition #2: Log Entry Sync Start
+        // initializeMetadata function in MetadataManager should be first to set ReplicationStatus
+        // Current SyncStatus for ReplicationInfo and SnapshotSyncInfo should be NOT_STARTED
+        Assert.assertEquals(SyncStatus.NOT_STARTED,
+                currentReplicationStatus.getSourceStatus().getReplicationInfo().getStatus());
+        Assert.assertEquals(SyncStatus.NOT_STARTED,
+                currentReplicationStatus.getSourceStatus().getReplicationInfo().getSnapshotSyncInfo().getStatus());
+
+        // Transition #1: Log Entry Sync Start
         transition(LogReplicationEventType.LOG_ENTRY_SYNC_REQUEST, LogReplicationStateType.IN_LOG_ENTRY_SYNC);
 
+        // Await for update to status table from entry of InLogEntrySync
         statusTableLatch.await();
         corfuStore.unsubscribeListener(streamListener);
 
@@ -280,12 +299,11 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
             }
         }
 
-        // Status starts as NOT_STARTED set by the polling task and gets updated in InLogEntrySyncState
-        LogReplicationMetadata.SyncStatus headStatus = LogReplicationMetadata.SyncStatus.NOT_STARTED;
+        // Status starts as NOT_STARTED set at the creation of the metadata manager,
+        // and then gets updated to COMPLETED in InLogEntrySyncState
         LogReplicationMetadata.SyncStatus tailStatus = LogReplicationMetadata.SyncStatus.COMPLETED;
 
         Assert.assertEquals(expectedSyncTypes, actualSyncTypes);
-        Assert.assertEquals(headStatus, actualSyncStatus.get(0));
         Assert.assertEquals(tailStatus, actualSyncStatus.get(actualSyncStatus.size() - 1));
     }
 
@@ -636,6 +654,18 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
                                 "test:" + SERVERS.PORT_0));
                 dataSender = new TestDataSender();
                 break;
+            case INITIALIZED:
+                // Used to test transitions from initialized state
+                // Requires session manager instance to check certain values are initialized
+                snapshotReader = new EmptySnapshotReader();
+                dataSender = new EmptyDataSender();
+
+                DefaultClusterManager defaultClusterManager = new DefaultClusterManager();
+                DefaultClusterConfig topologyConfig = new DefaultClusterConfig();
+                defaultClusterManager.setLocalNodeId(topologyConfig.getSourceNodeUuids().get(0));
+                TopologyDescriptor topology = defaultClusterManager.generateSingleSourceSinkTopolgy();
+                SessionManager sessionManager = new SessionManager(topology, this.runtime);
+                break;
             default:
                 break;
         }
@@ -748,7 +778,7 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
      * from markSnapshotSyncInfoOngoing and markSnapshotSyncInfoCompleted.
      *
      */
-    class TestStreamListener implements StreamListener {
+    class TestStatusTableStreamListener implements StreamListener {
         @Getter
         CopyOnWriteArrayList<CorfuStreamEntries> entries = new CopyOnWriteArrayList<>();
 
@@ -757,7 +787,7 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
 
         CountDownLatch countDownLatch;
 
-        public TestStreamListener(CountDownLatch countDownLatch) {
+        public TestStatusTableStreamListener(CountDownLatch countDownLatch) {
             this.countDownLatch = countDownLatch;
         }
 
@@ -782,6 +812,7 @@ public class LogReplicationFSMTest extends AbstractViewTest implements Observer 
     public enum ReaderImplementation {
         EMPTY,
         TEST,
-        STREAMS
+        STREAMS,
+        INITIALIZED
     }
 }
