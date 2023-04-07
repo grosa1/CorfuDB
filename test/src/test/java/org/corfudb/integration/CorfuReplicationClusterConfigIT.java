@@ -3,9 +3,9 @@ package org.corfudb.integration;
 import com.google.common.reflect.TypeToken;
 import com.google.protobuf.Message;
 import lombok.extern.slf4j.Slf4j;
-import org.corfudb.infrastructure.logreplication.infrastructure.SessionManager;
 import org.corfudb.infrastructure.logreplication.infrastructure.plugins.DefaultClusterConfig;
 import org.corfudb.infrastructure.logreplication.infrastructure.plugins.DefaultClusterManager;
+import org.corfudb.infrastructure.logreplication.utils.LogReplicationConfigManager;
 import org.corfudb.runtime.LogReplication.ReplicationStatus;
 import org.corfudb.infrastructure.logreplication.proto.Sample;
 import org.corfudb.infrastructure.logreplication.proto.Sample.IntValue;
@@ -331,7 +331,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         LogReplicationSession sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         ReplicationStatus replicationStatus;
@@ -386,7 +386,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         try (TxnContext txn = sinkCorfuStore.txn(LogReplicationMetadataManager.NAMESPACE)) {
@@ -459,7 +459,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         try (TxnContext txn = sourceCorfuStore.txn(LogReplicationMetadataManager.NAMESPACE)) {
@@ -526,7 +526,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         LogReplicationSession sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         ReplicationStatus replicationStatus;
@@ -587,7 +587,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         LogReplicationSession sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         ReplicationStatus replicationStatus;
@@ -625,7 +625,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         // Block until snapshot sync completes
@@ -795,7 +795,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         LogReplicationSession sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         ReplicationStatus replicationStatus;
@@ -1293,7 +1293,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         LogReplicationSession sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         ReplicationStatus replicationStatus;
@@ -1405,7 +1405,7 @@ public class CorfuReplicationClusterConfigIT extends AbstractIT {
         LogReplicationSession sessionKey = LogReplicationSession.newBuilder()
             .setSourceClusterId(new DefaultClusterConfig().getSourceClusterIds().get(0))
             .setSinkClusterId(new DefaultClusterConfig().getSinkClusterIds().get(0))
-            .setSubscriber(SessionManager.getDefaultSubscriber())
+            .setSubscriber(LogReplicationConfigManager.getDefaultSubscriber())
             .build();
 
         ReplicationStatus replicationStatus;
